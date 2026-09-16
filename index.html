@@ -42,6 +42,7 @@ header{text-align:center;margin-bottom:18px}.logo{font-size:58px;line-height:1;c
   <div class="row"><label>말랑도 <b id="sqv">60</b></label><input class="range" id="squish" type="range" min="10" max="100" value="60"></div>
   <div class="row"><label>탱력 <b id="spv">75</b></label><input class="range" id="spring" type="range" min="10" max="100" value="75"></div>
   <h3>✨ 만지기</h3>
+<div class="row"><label>⭐ 별 파티클 <b id="pv">ON</b></label><button class="effect active" id="particleToggle" style="width:100%;margin-top:8px;">⭐ 파티클 ON</button></div>
   <div class="effects">
     <button class="effect active" data-mode="press">🫳<br>꾹</button>
     <button class="effect" data-mode="poke">👉<br>콕</button>
@@ -83,12 +84,20 @@ scene.add(new THREE.AmbientLight(0xffffff,2.2));
 const key=new THREE.DirectionalLight(0xffffff,2.2);key.position.set(2,3,4);scene.add(key);
 const rim=new THREE.DirectionalLight(0xd9c6ff,1.3);rim.position.set(-3,-1,-2);scene.add(rim);
 let mesh=null, texture=null, originalScale=new THREE.Vector3(1,1,1);
-let down=false,lastX=0,lastY=0,velX=0,velY=0,rotationX=0,rotationY=0;
-let squish=60,spring=75,mode='press',touchStart=0;
+let down=false,lastX=0,lastY=0,velX=0,velY=0,rotationX=0,rotationY=0,lastSound=0;
+let squish=60,spring=75,mode='press',touchStart=0,particleEnabled=true;
 const particles=[];
 const pgeo=new THREE.BufferGeometry(); const positions=[]; for(let i=0;i<180;i++){positions.push(0,0,0)}
 pgeo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
-const pmaterial=new THREE.PointsMaterial({color:0xffffff,size:.055,transparent:true,opacity:.95,depthWrite:false});
+const starCanvas=document.createElement('canvas');starCanvas.width=64;starCanvas.height=64;
+const starCtx=starCanvas.getContext('2d');starCtx.clearRect(0,0,64,64);
+starCtx.fillStyle='#ffffff';starCtx.beginPath();
+for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,r=i%2?12:27;
+  const px=32+Math.cos(a)*r,py=32+Math.sin(a)*r;
+  i===0?starCtx.moveTo(px,py):starCtx.lineTo(px,py);}
+starCtx.closePath();starCtx.fill();
+const starTexture=new THREE.CanvasTexture(starCanvas);
+const pmaterial=new THREE.PointsMaterial({map:starTexture,color:0xffffff,size:.11,transparent:true,opacity:.98,depthWrite:false,alphaTest:.05});
 const points=new THREE.Points(pgeo,pmaterial);scene.add(points);
 const particleVel=Array.from({length:180},()=>new THREE.Vector3());let particleLife=new Float32Array(180);
 
@@ -131,6 +140,25 @@ drop.onclick=e=>{if(e.target.closest('#pick'))return;input.click()}; input.oncha
 ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));
 drop.addEventListener('drop',e=>loadFile(e.dataTransfer.files[0]));
 
+
+let audioCtx=null;
+function squishSound(power=1){
+  try{
+    audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+    const now=audioCtx.currentTime;
+    const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
+    osc.type='sine';
+    osc.frequency.setValueAtTime(180,now);
+    osc.frequency.exponentialRampToValueAtTime(85,now+0.12);
+    gain.gain.setValueAtTime(0.0001,now);
+    gain.gain.exponentialRampToValueAtTime(0.16*power,now+0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001,now+0.16);
+    osc.connect(gain);gain.connect(audioCtx.destination);
+    osc.start(now);osc.stop(now+0.17);
+  }catch(e){}
+}
+
 function pointerPos(e){const r=view.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top}}
 function burst(x,y){
  for(let i=0;i<9;i++){let idx=particles.findIndex((_,k)=>particleLife[k]<=0);if(idx<0)idx=Math.floor(Math.random()*180);
@@ -140,7 +168,7 @@ function burst(x,y){
  }pgeo.attributes.position.needsUpdate=true;
 }
 function setPointer(e){const p=pointerPos(e);if(down){const dx=p.x-lastX,dy=p.y-lastY;velX=dx*.012;velY=dy*.012;mesh.rotation.y+=dx*.008;mesh.rotation.x+=dy*.006;burst(p.x,p.y)}lastX=p.x;lastY=p.y}
-view.addEventListener('pointerdown',e=>{down=true;view.setPointerCapture(e.pointerId);const p=pointerPos(e);lastX=p.x;lastY=p.y;touchStart=performance.now();burst(p.x,p.y)});
+view.addEventListener('pointerdown',e=>{down=true;view.setPointerCapture(e.pointerId);const p=pointerPos(e);lastX=p.x;lastY=p.y;touchStart=performance.now();burst(p.x,p.y);squishSound(1)});
 view.addEventListener('pointermove',e=>setPointer(e));
 view.addEventListener('pointerup',()=>{down=false});view.addEventListener('pointercancel',()=>{down=false});
 
@@ -150,11 +178,11 @@ function animate(){
    velX*=.93;velY*=.93;
    if(!down){mesh.rotation.y+=velX;mesh.rotation.x+=velY}
    const wobble=down?(1+.08*squish/100):1;
-   const targetX=down?1-.18*squish/100:1, targetY=down?1+.14*squish/100:1;
+   const targetX=down?1-.24*squish/100:1, targetY=down?1+.19*squish/100:1;
    mesh.scale.x += (targetX-mesh.scale.x)*.22;
    mesh.scale.y += (targetY-mesh.scale.y)*.22;
-   mesh.scale.z += (wobble-mesh.scale.z)*.18;
-   if(!down){mesh.scale.x+=(1-mesh.scale.x)*(.035+spring*.0007);mesh.scale.y+=(1-mesh.scale.y)*(.035+spring*.0007);mesh.scale.z+=(1-mesh.scale.z)*(.035+spring*.0007)}
+   mesh.scale.z += (wobble-mesh.scale.z)*.24;
+   if(!down){mesh.scale.x+=(1-mesh.scale.x)*(.045+spring*.0009);mesh.scale.y+=(1-mesh.scale.y)*(.045+spring*.0009);mesh.scale.z+=(1-mesh.scale.z)*(.045+spring*.0009)}
  }
  for(let i=0;i<180;i++){if(particleLife[i]>0){positions[i*3]+=particleVel[i].x;positions[i*3+1]+=particleVel[i].y;positions[i*3+2]+=particleVel[i].z;particleVel[i].y-=.00045;particleLife[i]--;}}
  pgeo.attributes.position.needsUpdate=true;pmaterial.opacity=.95;
@@ -166,6 +194,12 @@ $('#squish').oninput=e=>{squish=+e.target.value;$('#sqv').textContent=squish};
 $('#spring').oninput=e=>{spring=+e.target.value;$('#spv').textContent=spring};
 document.querySelectorAll('.effect').forEach(b=>b.onclick=()=>{document.querySelectorAll('.effect').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.dataset.mode});
 $('#reset').onclick=()=>{if(mesh){mesh.rotation.set(-.08,.15,0);mesh.scale.set(1,1,1)}};
+$('#particleToggle').onclick=()=>{
+  particleEnabled=!particleEnabled;
+  $('#particleToggle').textContent=particleEnabled?'⭐ 파티클 ON':'☆ 파티클 OFF';
+  $('#pv').textContent=particleEnabled?'ON':'OFF';
+  $('#particleToggle').classList.toggle('active',particleEnabled);
+};
 $('#again').onclick=()=>{work.style.display='none';drop.style.display='block';input.value='';window.scrollTo({top:0,behavior:'smooth'})};
 
 let recorder=null,chunks=[],lastVideoUrl=null,lastVideoBlob=null;
