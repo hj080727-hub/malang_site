@@ -87,43 +87,140 @@ let mesh=null, texture=null, originalScale=new THREE.Vector3(1,1,1);
 let down=false,lastX=0,lastY=0,velX=0,velY=0,rotationX=0,rotationY=0,lastSound=0;
 let squish=60,spring=75,mode='press',touchStart=0,particleEnabled=true;
 const particles=[];
-const pgeo=new THREE.BufferGeometry(); const positions=[]; for(let i=0;i<180;i++){positions.push(0,0,0)}
-pgeo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
 const starCanvas=document.createElement('canvas');starCanvas.width=64;starCanvas.height=64;
-const starCtx=starCanvas.getContext('2d');starCtx.clearRect(0,0,64,64);
-starCtx.fillStyle='#ffffff';starCtx.beginPath();
-for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,r=i%2?12:27;
-  const px=32+Math.cos(a)*r,py=32+Math.sin(a)*r;
-  i===0?starCtx.moveTo(px,py):starCtx.lineTo(px,py);}
+const starCtx=starCanvas.getContext('2d');
+starCtx.clearRect(0,0,64,64);
+starCtx.fillStyle='#ffffff';
+starCtx.beginPath();
+for(let i=0;i<10;i++){
+  const a=-Math.PI/2+i*Math.PI/5, r=i%2?11:28;
+  const px=32+Math.cos(a)*r, py=32+Math.sin(a)*r;
+  if(i===0)starCtx.moveTo(px,py);else starCtx.lineTo(px,py);
+}
 starCtx.closePath();starCtx.fill();
 const starTexture=new THREE.CanvasTexture(starCanvas);
-const pmaterial=new THREE.PointsMaterial({map:starTexture,color:0xffffff,size:.11,transparent:true,opacity:.98,depthWrite:false,alphaTest:.05});
-const points=new THREE.Points(pgeo,pmaterial);scene.add(points);
-const particleVel=Array.from({length:180},()=>new THREE.Vector3());let particleLife=new Float32Array(180);
+const particleGroup=new THREE.Group();scene.add(particleGroup);
 
+function makeStar(x,y){
+  if(!particleEnabled)return;
+  const r=view.getBoundingClientRect();
+  const nx=(x/r.width-.5)*3.0, ny=-(y/r.height-.5)*3.0;
+  const mat=new THREE.SpriteMaterial({map:starTexture,color:0xffffff,transparent:true,opacity:1,depthTest:false,depthWrite:false});
+  const star=new THREE.Sprite(mat);
+  star.position.set(nx,ny,1.2);
+  star.scale.set(.13,.13,1);
+  star.userData={
+    vx:(Math.random()-.5)*.025,
+    vy:(Math.random()-.5)*.025+.018,
+    vz:(Math.random()-.5)*.008,
+    life:34+Math.random()*24,
+    spin:(Math.random()-.5)*.08
+  };
+  particleGroup.add(star);
+}
+
+function burst(x,y){
+  if(!particleEnabled)return;
+  for(let i=0;i<7;i++)makeStar(x+(Math.random()-.5)*28,y+(Math.random()-.5)*28);
+}
 function fit(){
  const w=box.clientWidth,h=box.clientHeight; renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
 }
 addEventListener('resize',fit);
 
 function makeCircleTexture(img){
-  const size=1024,c=document.createElement('canvas');c.width=c.height=size;
-  const x=c.getContext('2d');
-  x.clearRect(0,0,size,size);x.save();
-  x.beginPath();x.arc(size/2,size/2,size/2,0,Math.PI*2);x.clip();
-  // 투명 PNG의 투명한 부분은 흰색으로 채웁니다.
-  x.fillStyle='#ffffff';x.fillRect(0,0,size,size);
-  const side=Math.min(img.naturalWidth,img.naturalHeight);
-  const sx=(img.naturalWidth-side)/2, sy=(img.naturalHeight-side)/2;
-  x.drawImage(img,sx,sy,side,side,0,0,size,size);
-  const data=x.getImageData(0,0,size,size), d=data.data;
-  for(let i=0;i<d.length;i+=4){
-    if(d[i+3]<255){d[i]=255;d[i+1]=255;d[i+2]=255;d[i+3]=255;}
+  const s = 1024;
+  const c = document.createElement('canvas');
+  c.width = c.height = s;
+  const ctx = c.getContext('2d', {willReadFrequently:true});
+
+  // 사진이 들어가는 영역의 크기와 위치를 계산합니다.
+  const scale = Math.min(s / img.width, s / img.height);
+  const w = img.width * scale;
+  const h = img.height * scale;
+  const x = (s - w) / 2;
+  const y = (s - h) / 2;
+
+  // 먼저 투명한 캔버스에 사진을 그립니다.
+  ctx.clearRect(0, 0, s, s);
+  ctx.drawImage(img, x, y, w, h);
+
+  // 사진의 가장자리 픽셀을 이용해 빈(투명) 부분을 자연스럽게 채웁니다.
+  const data = ctx.getImageData(0, 0, s, s);
+  const px = data.data;
+  const original = new Uint8ClampedArray(px);
+
+  // 각 투명 픽셀에서 가장 가까운 불투명 픽셀을 찾기 위한 반복 확장.
+  // 이미지 바깥 여백까지 사진 끝 색이 부드럽게 퍼지도록 합니다.
+  const filled = new Uint8Array(s * s);
+  for(let yy=0; yy<s; yy++){
+    for(let xx=0; xx<s; xx++){
+      const i = (yy*s + xx)*4;
+      if(original[i+3] > 0) filled[yy*s+xx] = 1;
+    }
   }
-  x.putImageData(data,0,0);
-  x.restore();
-  return new THREE.CanvasTexture(c);
+
+  // 이미지 영역 바깥은 가장 가까운 사진 픽셀의 색으로 채웁니다.
+  // 작은 이미지에서는 여러 번 확장해도 충분히 자연스럽게 이어집니다.
+  const maxRadius = Math.ceil(Math.max(s - w, s - h)) + 4;
+  for(let radius=1; radius<=maxRadius; radius++){
+    let changed = 0;
+    const next = new Uint8Array(filled);
+
+    for(let yy=0; yy<s; yy++){
+      for(let xx=0; xx<s; xx++){
+        const pos = yy*s+xx;
+        if(filled[pos]) continue;
+
+        let found = -1;
+        // 현재 반경의 십자/대각선 주변에서 가장 가까운 픽셀을 찾습니다.
+        const candidates = [
+          [xx-radius,yy],[xx+radius,yy],
+          [xx,yy-radius],[xx,yy+radius],
+          [xx-radius,yy-radius],[xx+radius,yy-radius],
+          [xx-radius,yy+radius],[xx+radius,yy+radius]
+        ];
+        for(const [nx,ny] of candidates){
+          if(nx>=0 && nx<s && ny>=0 && ny<s && filled[ny*s+nx]){
+            found = (ny*s+nx)*4;
+            break;
+          }
+        }
+        if(found >= 0){
+          const i = pos*4;
+          px[i]   = original[found];
+          px[i+1] = original[found+1];
+          px[i+2] = original[found+2];
+          px[i+3] = 255;
+          next[pos] = 1;
+          changed++;
+        }
+      }
+    }
+    filled.set(next);
+    if(changed === 0) break;
+  }
+
+  // 혹시 남은 픽셀이 있다면 흰색으로 마무리합니다.
+  for(let yy=0; yy<s; yy++){
+    for(let xx=0; xx<s; xx++){
+      const pos = yy*s+xx;
+      const i = pos*4;
+      if(px[i+3] === 0){
+        px[i]=px[i+1]=px[i+2]=255;
+        px[i+3]=255;
+      }
+    }
+  }
+
+  ctx.putImageData(data, 0, 0);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
 }
+
 function loadFile(f){
  if(!f || !/^image\/(png|jpeg|webp)$/.test(f.type))return;
  const url=URL.createObjectURL(f), im=new Image();
@@ -141,24 +238,33 @@ drop.onclick=e=>{if(e.target.closest('#pick'))return;input.click()}; input.oncha
 drop.addEventListener('drop',e=>loadFile(e.dataTransfer.files[0]));
 
 
-let audioCtx=null;
+let audioCtx=null,lastSoundTime=0;
 function squishSound(power=1){
   try{
-    audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
-    if(audioCtx.state==='suspended')audioCtx.resume();
-    const now=audioCtx.currentTime;
-    const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
-    osc.type='sine';
-    osc.frequency.setValueAtTime(180,now);
-    osc.frequency.exponentialRampToValueAtTime(85,now+0.12);
-    gain.gain.setValueAtTime(0.0001,now);
-    gain.gain.exponentialRampToValueAtTime(0.16*power,now+0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001,now+0.16);
-    osc.connect(gain);gain.connect(audioCtx.destination);
-    osc.start(now);osc.stop(now+0.17);
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    if(!audioCtx) audioCtx = new AC();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = 'sine';
+    // 밝고 가벼운 "뿅!" 느낌 — 낮은 둔탁한 음역을 피합니다.
+    osc.frequency.setValueAtTime(720, now);
+    osc.frequency.exponentialRampToValueAtTime(430, now + 0.075);
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.18 * power, now + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.13);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.14);
   }catch(e){}
 }
-
 function pointerPos(e){const r=view.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top}}
 function burst(x,y){
  for(let i=0;i<9;i++){let idx=particles.findIndex((_,k)=>particleLife[k]<=0);if(idx<0)idx=Math.floor(Math.random()*180);
@@ -168,7 +274,7 @@ function burst(x,y){
  }pgeo.attributes.position.needsUpdate=true;
 }
 function setPointer(e){const p=pointerPos(e);if(down){const dx=p.x-lastX,dy=p.y-lastY;velX=dx*.012;velY=dy*.012;mesh.rotation.y+=dx*.008;mesh.rotation.x+=dy*.006;burst(p.x,p.y)}lastX=p.x;lastY=p.y}
-view.addEventListener('pointerdown',e=>{down=true;view.setPointerCapture(e.pointerId);const p=pointerPos(e);lastX=p.x;lastY=p.y;touchStart=performance.now();burst(p.x,p.y);squishSound(1)});
+view.addEventListener('pointerdown',e=>{down=true;view.setPointerCapture(e.pointerId);const p=pointerPos(e);lastX=p.x;lastY=p.y;touchStart=performance.now();burst(p.x,p.y);squishSound(1);});
 view.addEventListener('pointermove',e=>setPointer(e));
 view.addEventListener('pointerup',()=>{down=false});view.addEventListener('pointercancel',()=>{down=false});
 
@@ -184,8 +290,15 @@ function animate(){
    mesh.scale.z += (wobble-mesh.scale.z)*.24;
    if(!down){mesh.scale.x+=(1-mesh.scale.x)*(.045+spring*.0009);mesh.scale.y+=(1-mesh.scale.y)*(.045+spring*.0009);mesh.scale.z+=(1-mesh.scale.z)*(.045+spring*.0009)}
  }
- for(let i=0;i<180;i++){if(particleLife[i]>0){positions[i*3]+=particleVel[i].x;positions[i*3+1]+=particleVel[i].y;positions[i*3+2]+=particleVel[i].z;particleVel[i].y-=.00045;particleLife[i]--;}}
- pgeo.attributes.position.needsUpdate=true;pmaterial.opacity=.95;
+  for(let i=particleGroup.children.length-1;i>=0;i--){
+    const star=particleGroup.children[i],u=star.userData;
+    star.position.x+=u.vx;star.position.y+=u.vy;star.position.z+=u.vz;
+    u.vy-=.00065;star.material.rotation+=u.spin;
+    u.life--;
+    star.material.opacity=Math.max(0,u.life/45);
+    star.scale.multiplyScalar(0.985);
+    if(u.life<=0){particleGroup.remove(star);star.material.dispose();}
+  }
  renderer.render(scene,camera);
 }
 animate();
