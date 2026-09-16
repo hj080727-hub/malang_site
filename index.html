@@ -43,6 +43,7 @@ header{text-align:center;margin-bottom:18px}.logo{font-size:58px;line-height:1;c
   <div class="row"><label>탱력 <b id="spv">75</b></label><input class="range" id="spring" type="range" min="10" max="100" value="75"></div>
   <h3>✨ 만지기</h3>
 <div class="row"><label>⭐ 별 파티클 <b id="pv">ON</b></label><button class="effect active" id="particleToggle" style="width:100%;margin-top:8px;">⭐ 파티클 ON</button></div>
+  <div class="row"><label>🔊 효과음 <b id="sv">ON</b></label><button class="effect active" id="soundToggle" style="width:100%;margin-top:8px;">🔊 효과음 ON</button></div>
   <div class="effects">
     <button class="effect active" data-mode="press">🫳<br>꾹</button>
     <button class="effect" data-mode="poke">👉<br>콕</button>
@@ -121,7 +122,7 @@ function makeStar(x,y){
 
 function burst(x,y){
   if(!particleEnabled)return;
-  for(let i=0;i<7;i++)makeStar(x+(Math.random()-.5)*28,y+(Math.random()-.5)*28);
+  for(let i=0;i<4;i++)makeStar(x+(Math.random()-.5)*28,y+(Math.random()-.5)*28);
 }
 function fit(){
  const w=box.clientWidth,h=box.clientHeight; renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
@@ -256,11 +257,12 @@ drop.onclick=e=>{if(e.target.closest('#pick'))return;input.click()}; input.oncha
 drop.addEventListener('drop',e=>loadFile(e.dataTransfer.files[0]));
 
 
-let audioCtx=null,lastSoundTime=0;
+let audioCtx=null,lastSoundTime=0,soundEnabled=true;
 const squishAudio = new Audio('./squish.mp3');
 squishAudio.preload = 'auto';
 
 function squishSound(power=1){
+  if(!soundEnabled)return;
   try{
     const audio = squishAudio.cloneNode(true);
     audio.volume = Math.max(0, Math.min(1, 0.85 * power));
@@ -302,13 +304,19 @@ animate();
 
 $('#squish').oninput=e=>{squish=+e.target.value;$('#sqv').textContent=squish};
 $('#spring').oninput=e=>{spring=+e.target.value;$('#spv').textContent=spring};
-document.querySelectorAll('.effect').forEach(b=>b.onclick=()=>{document.querySelectorAll('.effect').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.dataset.mode});
+document.querySelectorAll('.effect[data-mode]').forEach(b=>b.onclick=()=>{document.querySelectorAll('.effect[data-mode]').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.dataset.mode});
 $('#reset').onclick=()=>{if(mesh){mesh.rotation.set(-.08,.15,0);mesh.scale.set(1,1,1)}};
 $('#particleToggle').onclick=()=>{
   particleEnabled=!particleEnabled;
   $('#particleToggle').textContent=particleEnabled?'⭐ 파티클 ON':'☆ 파티클 OFF';
   $('#pv').textContent=particleEnabled?'ON':'OFF';
   $('#particleToggle').classList.toggle('active',particleEnabled);
+};
+$('#soundToggle').onclick=()=>{
+  soundEnabled=!soundEnabled;
+  $('#soundToggle').textContent=soundEnabled?'🔊 효과음 ON':'🔇 효과음 OFF';
+  $('#sv').textContent=soundEnabled?'ON':'OFF';
+  $('#soundToggle').classList.toggle('active',soundEnabled);
 };
 $('#again').onclick=()=>{work.style.display='none';drop.style.display='block';input.value='';window.scrollTo({top:0,behavior:'smooth'})};
 
