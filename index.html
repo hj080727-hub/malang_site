@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>말랑 ♥ MALANG</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Jua&family=Nunito:wght@500;700;800&display=swap');
+*{box-sizing:border-box}body{margin:0;color:#75638e;background:#fffaff;font-family:Jua,system-ui,sans-serif}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.32;background-image:radial-gradient(#d9c8ef 1px,transparent 1px);background-size:22px 22px}
+.wrap{max-width:1180px;margin:auto;padding:26px 18px 45px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}
+.logo{font-size:54px;line-height:1;color:#a98ce4;text-shadow:3px 4px 0 #f2ddff}.logo small{display:block;font-size:14px;text-shadow:none;color:#a18bae;text-align:center;margin-top:6px}
+.card{background:#fff;border:2px solid #eadcff;border-radius:28px;box-shadow:0 12px 30px #c9b5df33}
+.upload{padding:34px;text-align:center;border-style:dashed;cursor:pointer}.upload.drag{background:#fbf5ff}.upload .cloud{font-size:52px}.upload h2{margin:6px 0;color:#8e76bd}.upload p{margin:4px;color:#aa9ab8}
+.btn{border:0;border-radius:18px;background:#c8adf4;color:#fff;padding:12px 22px;font:inherit;cursor:pointer;box-shadow:0 5px 0 #a78bd5}.btn:active{transform:translateY(3px);box-shadow:0 2px 0 #a78bd5}
+#file{display:none}.hint{font-size:13px;margin-top:12px;color:#b49bc5}
+.work{display:grid;grid-template-columns:240px 1fr 220px;gap:14px;margin-top:18px}.panel{padding:18px}.panel h3{margin:0 0 12px;font-size:18px}.row{margin:18px 0}.row label{display:flex;justify-content:space-between;margin-bottom:7px}.range{width:100%;accent-color:#b998ec}
+.effects{display:grid;grid-template-columns:1fr 1fr;gap:8px}.effect{border:2px solid #eee2fa;background:#fff;border-radius:15px;padding:10px 5px;font:inherit;color:#8e7aa3;cursor:pointer}.effect.active{border-color:#b99bea;background:#f8f1ff}
+.stage{padding:14px;display:flex;flex-direction:column;align-items:center}.canvasbox{width:100%;aspect-ratio:1/1;max-height:650px;display:flex;align-items:center;justify-content:center;border-radius:22px;overflow:hidden;background:linear-gradient(135deg,#fbf6ff,#fff);border:2px solid #eee2fa;position:relative}
+canvas{max-width:100%;max-height:100%;touch-action:none;cursor:grab}canvas:active{cursor:grabbing}
+.tip{margin:10px 0 2px;background:#fff;border:2px solid #efdfff;border-radius:999px;padding:8px 17px;color:#9b7fc0}
+.info{text-align:center}.thumb{width:100%;aspect-ratio:1;border-radius:18px;object-fit:contain;background:#faf5ff;border:2px solid #eee2fa}.muted{font-size:12px;color:#aa9ab8;line-height:1.6}.empty{display:none}.bottom{text-align:center;margin-top:18px;color:#b09bc2;font-size:13px}
+@media(max-width:900px){.work{grid-template-columns:1fr}.panel.left{order:2}.info{display:grid;grid-template-columns:90px 1fr;gap:12px;text-align:left}.info .thumb{grid-row:1/3}.logo{font-size:42px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="logo">MALANG ♥<small>사진을 넣으면 말랑말랑해져요!</small></div><div>♡　☆</div></div>
+  <div class="card upload" id="drop">
+    <div class="cloud">☁︎</div><h2>사진을 여기로 데려와 주세요!</h2>
+    <p>드래그 앤 드롭 또는</p><button class="btn" id="pick">사진 선택하기</button>
+    <div class="hint">PNG · JPG · WEBP 지원　/　사진은 브라우저 안에서만 처리돼요 ♡</div>
+    <input id="file" type="file" accept="image/png,image/jpeg,image/webp">
+  </div>
+
+  <div class="work" id="work" style="display:none">
+    <aside class="card panel left">
+      <h3>🐰 말랑도 설정</h3>
+      <div class="row"><label>말랑도 <b id="squishVal">55</b></label><input class="range" id="squish" type="range" min="5" max="100" value="55"></div>
+      <div class="row"><label>탱력 <b id="springVal">72</b></label><input class="range" id="spring" type="range" min="10" max="100" value="72"></div>
+      <h3>✨ 효과</h3>
+      <div class="effects">
+        <button class="effect active" data-mode="press">🫳<br>꾹 누르기</button>
+        <button class="effect" data-mode="poke">👉<br>찌르기</button>
+        <button class="effect" data-mode="shake">〰️<br>흔들기</button>
+        <button class="effect" data-mode="bounce">💥<br>팡 튕기기</button>
+      </div>
+      <div class="row"><button class="btn" id="reset">↻ 원래대로</button></div>
+    </aside>
+
+    <main class="card stage">
+      <div class="canvasbox"><canvas id="canvas"></canvas></div>
+      <div class="tip">🫳 꾹 눌러보세요!　(っ˘ω˘ς ) ♥</div>
+    </main>
+
+    <aside class="card panel info">
+      <img class="thumb" id="thumb">
+      <div><h3>💗 나의 말랑이</h3><p class="muted">사진을 누르고 움직이면<br>쭈욱— 말랑하게 늘어나요!</p>
+      <button class="btn" id="download">♡ 저장하기</button></div>
+    </aside>
+  </div>
+  <div class="bottom">오늘도 말랑한 하루가 되길… ⋆｡°✩</div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s), canvas=$('#canvas'), ctx=canvas.getContext('2d');
+const file=$('#file'), drop=$('#drop'), work=$('#work'), img=new Image();
+let base=null, mode='press', active=false, px=0,py=0, curX=0,curY=0, raf=0;
+let squish=55, spring=72;
+
+$('#pick').onclick=()=>file.click();
+drop.onclick=e=>{if(e.target.id!=='pick')file.click()};
+['dragenter','dragover'].forEach(x=>drop.addEventListener(x,e=>{e.preventDefault();drop.classList.add('drag')}));
+['dragleave','drop'].forEach(x=>drop.addEventListener(x,e=>{e.preventDefault();drop.classList.remove('drag')}));
+drop.addEventListener('drop',e=>loadFile(e.dataTransfer.files[0]));
+file.onchange=e=>loadFile(e.target.files[0]);
+
+function loadFile(f){
+ if(!f || !f.type.startsWith('image/')) return;
+ const r=new FileReader(); r.onload=()=>{img.onload=()=>init();img.src=r.result};r.readAsDataURL(f);
+}
+function init(){
+ const max=700, scale=Math.min(1,max/img.width,max/img.height);
+ canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);
+ base=ctx.getImageData(0,0,canvas.width,canvas.height);
+ $('#thumb').src=img.src; work.style.display='grid'; drop.style.display='none'; draw(0,0);
+}
+function draw(tx=0,ty=0){
+ if(!base)return;
+ const w=canvas.width,h=canvas.height,out=ctx.createImageData(w,h),src=base.data,d=out.data;
+ const radius=Math.max(35,Math.min(w,h)*(.13+.003*squish));
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+   let dx=x-tx,dy=y-ty,dist=Math.hypot(dx,dy),sx=x,sy=y;
+   if(active && dist<radius){
+     const t=1-dist/radius, power=(.55+.012*squish)*t*t;
+     sx=x-dx*power; sy=y-dy*power;
+   }
+   sx=Math.max(0,Math.min(w-1,sx));sy=Math.max(0,Math.min(h-1,sy));
+   const i=(y*w+x)*4,j=(Math.floor(sy)*w+Math.floor(sx))*4;
+   d[i]=src[j];d[i+1]=src[j+1];d[i+2]=src[j+2];d[i+3]=src[j+3];
+ }
+ ctx.putImageData(out,0,0);
+}
+canvas.addEventListener('pointerdown',e=>{active=true;canvas.setPointerCapture(e.pointerId);setPos(e)});
+canvas.addEventListener('pointermove',e=>{if(active)setPos(e)});
+canvas.addEventListener('pointerup',()=>{active=false;springBack()});
+canvas.addEventListener('pointercancel',()=>{active=false;springBack()});
+function setPos(e){const r=canvas.getBoundingClientRect();px=(e.clientX-r.left)*canvas.width/r.width;py=(e.clientY-r.top)*canvas.height/r.height;draw(px,py)}
+function springBack(){
+ cancelAnimationFrame(raf);let n=0;const frames=Math.max(8,Math.round(34-spring*.2));
+ const step=()=>{n++;active=true;draw(px,py);active=false; if(n<frames)raf=requestAnimationFrame(step);else draw(0,0)};step();
+}
+document.querySelectorAll('.effect').forEach(b=>b.onclick=()=>{document.querySelectorAll('.effect').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.dataset.mode});
+$('#squish').oninput=e=>{squish=+e.target.value;$('#squishVal').textContent=squish};
+$('#spring').oninput=e=>{spring=+e.target.value;$('#springVal').textContent=spring};
+$('#reset').onclick=()=>draw(0,0);
+$('#download').onclick=()=>{const a=document.createElement('a');a.download='malang.png';a.href=canvas.toDataURL('image/png');a.click()};
+</script>
+</body></html>
